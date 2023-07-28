@@ -1,5 +1,6 @@
 const TelegramBot = require("node-telegram-bot-api");
 const fs = require("fs");
+const exec = require("child_process").exec;
 require("dotenv").config();
 
 // replace the value below with the Telegram token you received from @BotFather
@@ -23,13 +24,61 @@ bot.on("message", (msg) => {
         console.log(`stderr: ${stderr}`);
         return;
       }
-      bot.sendMessage(chatId, `CPU and Memory status:\n${stdout}`);
+      bot.sendMessage(chatId, `<pre>${stdout}</pre>`, { parse_mode: "HTML" });
     });
   }
 });
 
 let previousSize = 0;
 
+// fs.watchFile(filePath, (curr, prev) => {
+//   if (curr.mtime !== prev.mtime) {
+//     // File has been modified
+//     const newSize = curr.size;
+//     const sizeDiff = newSize - previousSize;
+
+//     if (sizeDiff > 0) {
+//       const buffer = Buffer.alloc(sizeDiff);
+
+//       // Open the file
+//       fs.open(filePath, "r", (err, fd) => {
+//         if (err) throw err;
+
+//         // Read the new content
+//         fs.read(
+//           fd,
+//           buffer,
+//           0,
+//           sizeDiff,
+//           previousSize,
+//           (err, bytesRead, buffer) => {
+//             if (err) throw err;
+
+//             const newContent = buffer.toString("utf8");
+
+//             // Split the new content into lines
+//             const lines = newContent.split("/\r?\n/");
+
+//             // Find the line that contains the specified string
+//             const alertLine = lines.find((line) =>
+//               line.includes("Out of memory:")
+//             );
+
+//             if (alertLine) {
+//               bot.sendMessage(chatId, `Alert: ${alertLine}`);
+//               // Update the previous size
+//               previousSize = newSize;
+//             }
+
+//             fs.close(fd, (err) => {
+//               if (err) throw err;
+//             });
+//           }
+//         );
+//       });
+//     }
+//   }
+// });
 fs.watchFile(filePath, (curr, prev) => {
   if (curr.mtime !== prev.mtime) {
     // File has been modified
@@ -55,18 +104,20 @@ fs.watchFile(filePath, (curr, prev) => {
 
             const newContent = buffer.toString("utf8");
 
-            // Split the new content into lines
-            const lines = newContent.split("\n");
+            // Check if the new content contains the specified string
+            if (newContent.includes("Out of memory:")) {
+              // Split the new content into lines
+              const lines = newContent.split(/\r?\n/);
 
-            // Find the line that contains the specified string
-            const alertLine = lines.find((line) =>
-              line.includes("Out of memory:")
-            );
-
-            if (alertLine) {
-              bot.sendMessage(chatId, `Alert: ${alertLine}`);
-              // Update the previous size
-              previousSize = newSize;
+              // Find the line that contains the specified string
+              const alertLine = lines
+                .reverse()
+                .find((line) => line.includes("Out of memory:"));
+              if (alertLine) {
+                bot.sendMessage(chatId, `Alert: ${alertLine}`);
+                // Update the previous size
+                previousSize = newSize;
+              }
             }
 
             fs.close(fd, (err) => {
@@ -78,7 +129,6 @@ fs.watchFile(filePath, (curr, prev) => {
     }
   }
 });
-
 bot.on("polling_error", (error) => {
   console.log(error); // => 'EFATAL'
 });
